@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quiz App</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0; padding: 0;
+      background: #f0f4f8;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 1rem;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background: white;
+      padding: 1rem 1.5rem 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
+    }
+    h1, h2, h3 {
+      text-align: center;
+      margin: 0.5rem 0 1rem;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      font-size: 18px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      user-select: none;
+    }
+    .btn:hover {
+      background: #0056b3;
+    }
+    .question-card {
+      background: white;
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom: 1rem;
+    }
+    img, audio {
+      max-width: 100%;
+      margin-top: 10px;
+      border-radius: 8px;
+    }
+    .input, textarea {
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+    .link-box {
+      background: #e0f7fa;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 10px;
+      font-family: monospace;
+      overflow-wrap: break-word;
+      user-select: all;
+    }
+    .quiz-form input {
+      margin-bottom: 8px;
+    }
+    #savedQuizzes {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 0.5rem;
+    }
+    .saved-quiz-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    .saved-quiz-item label {
+      flex-grow: 1;
+      margin-left: 6px;
+      user-select: none;
+    }
+    .saved-quiz-item button {
+      margin-left: 6px;
+      padding: 6px 12px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+    .saved-quiz-item button:hover {
+      opacity: 0.85;
+    }
+    .btn-edit { background: #ffc107; color: #000; }
+    .btn-delete { background: #dc3545; color: white; }
+    .btn-start { background: #28a745; color: white; }
+    .btn-export { background: #17a2b8; color: white; margin-top: 10px; }
+    #importFile {
+      margin-top: 10px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="app">
+    <h1>Quiz Auswahl</h1>
+    <h2>Mehr Quiz-Dateien
+        https://Quiz-App/Store.netlify.app</h2>
+    </h2>
+
+    <button class="btn" onclick="startQuiz('wwe')">WWE Quiz starten</button>
+    <button class="btn" onclick="startQuiz('world')">Länder & Städte Quiz starten</button>
+    <button class="btn" onclick="showCustomCreator()">Eigenes Quiz erstellen / bearbeiten</button>
+
+    <h3>Gespeicherte Quizzes</h3>
+    <div id="savedQuizzes"></div>
+    <button class="btn btn-export" onclick="exportSelectedQuizzes()">Ausgewählte Quizzes exportieren</button>
+    <input type="file" id="importFile" accept=".json" onchange="importQuizzes(event)" />
+
+    <div id="quizArea" style="display:none; margin-top: 1rem;"></div>
+    <div id="creatorArea" style="display:none; margin-top: 1rem;"></div>
+  </div>
+
+  <script>
+    // Vordefinierte Quizzes
+    const quizzes = {
+      wwe: [
+        { question: "Wie oft war John Cena World Champion?", answer: "17-facher" },
+        { question: "Wer ist bekannt als 'The Deadman'?", answer: "Undertaker" },
+        { question: "Wer gewann den Royal Rumble 2020?", answer: "Drew McIntyre" }
+      ],
+      world: [
+        { question: "Hauptstadt von Japan?", answer: "Tokio" },
+        { question: "Wie viele Bundesländer hat Deutschland?", answer: "16" },
+        { question: "Größtes Land der Erde?", answer: "Russland" }
+      ]
+    };
+
+    let currentQuiz = [];
+    let currentIndex = 0;
+
+    function startQuiz(typeOrData) {
+      const app = document.getElementById("quizArea");
+      app.innerHTML = '';
+      document.getElementById("creatorArea").style.display = "none";
+      app.style.display = "block";
+      currentIndex = 0;
+
+      if (typeof typeOrData === "string" && typeOrData.startsWith("data:")) {
+        try {
+          currentQuiz = JSON.parse(atob(typeOrData.split("data:")[1]));
+        } catch {
+          return alert("Ungültiger Link!");
+        }
+      } else if (Array.isArray(typeOrData)) {
+        currentQuiz = typeOrData;
+      } else if (quizzes[typeOrData]) {
+        currentQuiz = quizzes[typeOrData];
+      } else {
+        // Laden aus localStorage
+        const stored = localStorage.getItem("quiz-" + typeOrData);
+        if (!stored) return alert("Quiz nicht gefunden.");
+        try {
+          currentQuiz = JSON.parse(stored);
+        } catch {
+          return alert("Fehler beim Laden des Quizzes.");
+        }
+      }
+
+      showQuestion();
+    }
+
+    function showQuestion() {
+      const app = document.getElementById("quizArea");
+      app.innerHTML = "";
+
+      if (currentIndex >= currentQuiz.length) {
+        app.innerHTML = `<h2>Fertig! 🎉</h2><button class="btn" onclick="location.reload()">Zurück zur Auswahl</button>`;
+        return;
+      }
+
+      const q = currentQuiz[currentIndex];
+      const div = document.createElement("div");
+      div.className = "question-card";
+      div.innerHTML = `
+        <h2>Frage ${currentIndex + 1} von ${currentQuiz.length}</h2>
+        <p>${q.question}</p>
+        ${q.img ? `<img src="${q.img}" alt="Bild zur Frage" />` : ""}
+        ${q.audio ? `<audio controls src="${q.audio}"></audio>` : ""}
+        <input id="userAnswer" class="input" placeholder="Deine Antwort..." autocomplete="off" />
+        <button class="btn" onclick="checkAnswer()">Antwort prüfen</button>
+      `;
+      app.appendChild(div);
+      document.getElementById("userAnswer").focus();
+    }
+
+    function checkAnswer() {
+      const input = document.getElementById("userAnswer").value.trim().toLowerCase();
+      const correct = currentQuiz[currentIndex].answer.trim().toLowerCase();
+      alert(input === correct ? "✅ Richtig!" : `❌ Falsch! Richtige Antwort: ${currentQuiz[currentIndex].answer}`);
+      currentIndex++;
+      showQuestion();
+    }
+
+    // Quiz-Erstellung anzeigen
+    function showCustomCreator() {
+      const area = document.getElementById("creatorArea");
+      area.style.display = "block";
+      document.getElementById("quizArea").style.display = "none";
+      area.innerHTML = `
+        <h2>Eigenes Quiz erstellen</h2>
+        <input id="quizName" class="input" placeholder="Quizname (zum Speichern)" autocomplete="off" />
+        <div id="questionList"></div>
+        <button class="btn" onclick="addQuestion()">➕ Frage hinzufügen</button>
+        <button class="btn" onclick="saveEditedQuiz()">Quiz speichern</button>
+        <div id="shareArea"></div>
+      `;
+      addQuestion();
+    }
+
+    function addQuestion(q = '', a = '', img = '', audio = '') {
+      const list = document.getElementById("questionList");
+      if (!list) return;
+      const div = document.createElement("div");
+      div.className = "question-card quiz-form";
+      div.innerHTML = `
+        <input placeholder="Frage" class="input" autocomplete="off" value="${escapeHtml(q)}" />
+        <input placeholder="Antwort" class="input" autocomplete="off" value="${escapeHtml(a)}" />
+        <input placeholder="Bild-URL (optional)" class="input" autocomplete="off" value="${img}" />
+        <input placeholder="Audio-URL (optional)" class="input" autocomplete="off" value="${audio}" />
+      `;
+      list.appendChild(div);
+    }
+
+    function saveEditedQuiz() {
+      const nameInput = document.getElementById("quizName");
+      const name = nameInput.value.trim();
+      if (!name) {
+        alert("Bitte Quiznamen eingeben.");
+        return;
+      }
+
+      const forms = document.querySelectorAll(".quiz-form");
+      const quiz = [];
+      for (const f of forms) {
+        const [q, a, img, audio] = f.querySelectorAll("input");
+        if (!q.value.trim() || !a.value.trim()) continue;
+        quiz.push({ question: q.value.trim(), answer: a.value.trim(), img: img.value.trim() || null, audio: audio.value.trim() || null });
+      }
+      if (quiz.length === 0) {
+        alert("Bitte mindestens eine Frage eingeben.");
+        return;
+      }
+
+      localStorage.setItem("quiz-" + name, JSON.stringify(quiz));
+      alert("Quiz gespeichert!");
+      loadSavedQuizzes();
+      document.getElementById("creatorArea").style.display = "none";
+      document.getElementById("quizArea").style.display = "block";
+      startQuiz(name);
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Gespeicherte Quizzes laden und anzeigen
+    function loadSavedQuizzes() {
+      const container = document.getElementById("savedQuizzes");
+      container.innerHTML = '';
+      const keys = Object.keys(localStorage).filter(k => k.startsWith("quiz-"));
+      if (keys.length === 0) {
+        container.textContent = "Keine gespeicherten Quizzes gefunden.";
+        return;
+      }
+
+      keys.forEach(key => {
+        const quizName = key.substring(5);
+        const div = document.createElement("div");
+        div.className = "saved-quiz-item";
+        div.innerHTML = `
+          <input type="checkbox" id="chk-${quizName}" class="exportChk" />
+          <label for="chk-${quizName}">${quizName}</label>
+          <button class="btn btn-start" onclick="startQuiz('${quizName}')">Start</button>
+          <button class="btn btn-edit" onclick="editQuiz('${quizName}')">Bearbeiten</button>
+          <button class="btn btn-delete" onclick="deleteQuiz('${quizName}')">Löschen</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    
+
+    // Quiz löschen
+    function deleteQuiz(name) {
+      if (!confirm(`Quiz "${name}" wirklich löschen?`)) return;
+      localStorage.removeItem("quiz-" + name);
+      loadSavedQuizzes();
+    }
+
+    // Bearbeiten eines gespeicherten Quizzes
+    function editQuiz(name) {
+      const quizData = localStorage.getItem("quiz-" + name);
+      if (!quizData) {
+        alert("Quiz nicht gefunden.");
+        return;
+      }
+      const quiz = JSON.parse(quizData);
+      const area = document.getElementById("creatorArea");
+      area.style.display = "block";
+      document.getElementById("quizArea").style.display = "none";
+
+      area.innerHTML = `
+        <h2>Quiz bearbeiten: ${name}</h2>
+        <input id="quizName" class="input" placeholder="Quizname (zum Speichern)" autocomplete="off" value="${name}" />
+        <div id="questionList"></div>
+        <button class="btn" onclick="addQuestion()">➕ Frage hinzufügen</button>
+        <button class="btn" onclick="saveEditedQuiz()">Änderungen speichern</button>
+        <div id="shareArea"></div>
+      `;
+
+      const list = document.getElementById("questionList");
+      quiz.forEach(q => {
+        addQuestion(q.question, q.answer, q.img || '', q.audio || '');
+      });
+    }
+
+    // Export ausgewählter Quizzes als JSON-Datei (ZIP nicht implementiert, nur einzelne Dateien)
+    function exportSelectedQuizzes() {
+      const checkboxes = document.querySelectorAll(".exportChk:checked");
+      if (checkboxes.length === 0) {
+        alert("Bitte mindestens ein Quiz zum Export auswählen.");
+        return;
+      }
+
+      if (checkboxes.length === 1) {
+        // Einzelnes Quiz exportieren als JSON-Datei
+        const name = checkboxes[0].id.substring(4);
+        const data = localStorage.getItem("quiz-" + name);
+        if (!data) return alert("Quiz nicht gefunden.");
+
+        const blob = new Blob([data], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name + ".json";
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        // Mehrere Quizzes exportieren als JSON-Array in einer Datei
+        const exportData = {};
+        checkboxes.forEach(chk => {
+          const name = chk.id.substring(4);
+          const data = localStorage.getItem("quiz-" + name);
+          if (data) exportData[name] = JSON.parse(data);
+        });
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "quizzes-export.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    // Import von Quiz-Dateien (.json)
+    function importQuizzes(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const content = e.target.result;
+          const data = JSON.parse(content);
+
+          if (Array.isArray(data)) {
+            alert("Bitte einzelne Quizzes als Objekt speichern, kein Array.");
+            return;
+          }
+
+          if (typeof data === "object" && !Array.isArray(data)) {
+            // Prüfen ob es ein einzelnes Quiz (Array von Fragen) oder mehrere Quizzes (Objekt mit keys) ist
+            if (Object.values(data).every(v => Array.isArray(v))) {
+              // Objekt mit mehreren Quizzes: speichern alle
+              let count = 0;
+              for (const key in data) {
+                if (Array.isArray(data[key])) {
+                  localStorage.setItem("quiz-" + key, JSON.stringify(data[key]));
+                  count++;
+                }
+              }
+              alert(`${count} Quizzes importiert!`);
+            } else if (Array.isArray(data)) {
+              alert("Ungültiges Format.");
+            } else {
+              // Einzelnes Quiz als Array speichern?
+              if (Array.isArray(data)) {
+                localStorage.setItem("quiz-import", JSON.stringify(data));
+                alert("Quiz importiert als 'quiz-import'.");
+              } else {
+                alert("Ungültiges Format.");
+              }
+            }
+          } else {
+            alert("Ungültiges Dateiformat.");
+          }
+          loadSavedQuizzes();
+        } catch (err) {
+          alert("Fehler beim Importieren der Datei: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+      // Reset File input to allow re-importing same file
+      event.target.value = "";
+    }
+
+    // Initiales Laden gespeicherter Quizzes
+    loadSavedQuizzes();
+
+  </script>
+</body>
+</html>
